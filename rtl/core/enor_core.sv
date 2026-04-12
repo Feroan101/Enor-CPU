@@ -168,7 +168,15 @@ module enor_core (
     );
 
     // ==================== ALU Source Mux ====================
-    assign alu_op_b = dec_alu_src_b ? dec_imm_i : rs2_data;
+    // Select correct immediate based on instruction type
+    logic [31:0] imm_selected;
+    assign imm_selected = (dec_instr_type == 3'b010) ? dec_imm_s :  // S-type
+                          (dec_instr_type == 3'b011) ? dec_imm_b :  // B-type
+                          (dec_instr_type == 3'b100) ? dec_imm_u :  // U-type
+                          (dec_instr_type == 3'b101) ? dec_imm_j :  // J-type
+                          dec_imm_i;                                 // I-type (default)
+
+    assign alu_op_b = dec_alu_src_b ? imm_selected : rs2_data;
 
     // ==================== ALU ====================
     alu u_alu (

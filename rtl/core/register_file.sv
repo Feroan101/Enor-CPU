@@ -1,6 +1,7 @@
 // ENOR-CPU Register File
 // 32 scalar registers (x0-x31), x0 hardwired to 0
 // 2 read ports, 1 write port
+// Includes bypass network for write-through forwarding
 
 module register_file (
     input  logic        clk,
@@ -33,8 +34,14 @@ module register_file (
         end
     end
 
-    // Read logic (combinational, x0 always returns 0)
-    assign rs1_data = (rs1_addr == 5'b0) ? 32'b0 : registers[rs1_addr];
-    assign rs2_data = (rs2_addr == 5'b0) ? 32'b0 : registers[rs2_addr];
+    // Read logic with bypass (write-through forwarding)
+    // If reading same register being written, forward the write data
+    assign rs1_data = (rs1_addr == 5'b0) ? 32'b0 :
+                      (rd_we && rs1_addr == rd_addr) ? rd_data :
+                      registers[rs1_addr];
+
+    assign rs2_data = (rs2_addr == 5'b0) ? 32'b0 :
+                      (rd_we && rs2_addr == rd_addr) ? rd_data :
+                      registers[rs2_addr];
 
 endmodule
