@@ -62,9 +62,9 @@ module tb_enor_core;
         instr_mem[1]  = 32'h01400313; // ADDI x6, x0, 20
         instr_mem[2]  = 32'h006283b3; // ADD  x7, x5, x6
         instr_mem[3]  = 32'h40538433; // SUB  x8, x7, x5
-        instr_mem[4]  = 32'h009474b3; // AND  x9, x8, x7
-        instr_mem[5]  = 32'h00946533; // OR   x10, x8, x7
-        instr_mem[6]  = 32'h009445b3; // XOR  x11, x8, x7
+        instr_mem[4]  = 32'h007474b3; // AND  x9, x8, x7
+        instr_mem[5]  = 32'h00746533; // OR   x10, x8, x7
+        instr_mem[6]  = 32'h007445b3; // XOR  x11, x8, x7
         instr_mem[7]  = 32'h00702023; // SW   x7, 0(x0)
         instr_mem[8]  = 32'h00002603; // LW   x12, 0(x0)
         instr_mem[9]  = 32'h007426b3; // SLT  x13, x8, x7
