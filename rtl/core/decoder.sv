@@ -200,24 +200,34 @@ module decoder (
             end
 
             // Vector (opcode 0x57)
-            7'b0101111: begin
+            // Encoding: funct7 | vs2 | vs1 | funct3=000 | vd | opcode
+            7'b1010111: begin
                 is_vector = 1'b1;
-                vec_op    = funct7[3:0];
+                vec_op    = 4'h0;
                 case (funct7)
-                    7'h00: begin // VSETVL
+                    7'h00: begin // VADD - vector arithmetic, no scalar writeback
+                        vec_op = 4'h0;
+                    end
+                    7'h02: begin // VSUB
+                        vec_op = 4'h2;
+                    end
+                    7'h04: begin // VMUL
+                        vec_op = 4'h4;
+                    end
+                    7'h10: begin // VDOT - scalar result to rd
+                        vec_op = 4'h1;
+                        reg_write = 1'b1;
+                        wb_sel    = 2'b00;
+                    end
+                    7'h11: begin // VRED_SUM - scalar result to rd
+                        vec_op = 4'h3;
+                        reg_write = 1'b1;
+                        wb_sel    = 2'b00;
+                    end
+                    7'h20: begin // VSETVL - set vector length, write to rd
+                        vec_op = 4'h5;
                         reg_write = 1'b1;
                         alu_op    = 4'b0000;
-                        wb_sel    = 2'b00;
-                    end
-                    7'h01, 7'h02, 7'h03, 7'h04: begin // VADD, VSUB, VMUL, VDOT
-                        // Vector arithmetic - result goes to vector register
-                    end
-                    7'h10: begin // VDOT
-                        reg_write = 1'b1;
-                        wb_sel    = 2'b00;
-                    end
-                    7'h20: begin // VRED_SUM
-                        reg_write = 1'b1;
                         wb_sel    = 2'b00;
                     end
                 endcase
@@ -238,15 +248,19 @@ module decoder (
             // Matrix (opcode 0x77)
             7'b1110111: begin
                 is_matrix = 1'b1;
-                mat_op    = funct7[3:0];
+                mat_op    = 4'h0;
                 case (funct7)
                     7'h00: begin // MMUL
+                        mat_op = 4'h0;
                     end
                     7'h01: begin // MMAC
+                        mat_op = 4'h1;
                     end
                     7'h02: begin // MLOAD
+                        mat_op = 4'h2;
                     end
                     7'h03: begin // MSTORE
+                        mat_op = 4'h3;
                     end
                 endcase
             end
