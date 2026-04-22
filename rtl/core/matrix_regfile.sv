@@ -25,7 +25,7 @@ module matrix_regfile (
     // Read logic (combinational)
     assign read_data = matrix[row_addr][col_addr];
 
-    // Write logic
+    // Write logic (clear and write can happen in same cycle)
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             for (int i = 0; i < 8; i++) begin
@@ -33,14 +33,17 @@ module matrix_regfile (
                     matrix[i][j] <= 32'b0;
                 end
             end
-        end else if (clear) begin
-            for (int i = 0; i < 8; i++) begin
-                for (int j = 0; j < 8; j++) begin
-                    matrix[i][j] <= 32'b0;
+        end else begin
+            if (clear) begin
+                for (int i = 0; i < 8; i++) begin
+                    for (int j = 0; j < 8; j++) begin
+                        matrix[i][j] <= 32'b0;
+                    end
                 end
             end
-        end else if (write_en) begin
-            matrix[wr_row_addr][wr_col_addr] <= write_data;
+            if (write_en) begin
+                matrix[wr_row_addr][wr_col_addr] <= write_data;
+            end
         end
     end
 
