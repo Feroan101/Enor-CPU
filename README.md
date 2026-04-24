@@ -11,67 +11,18 @@ ENOR-CPU is a custom 32-bit RISC processor designed as the native hardware targe
 ENOR-CPU implements a complete execution stack from high-level language to hardware computation. The Enor compiler translates Enor programs into ENOR-CPU machine code, targeting three specialized execution domains: scalar control, vector computation, and matrix acceleration.
 
 ```mermaid
-graph TB
-    subgraph "Enor Software Stack"
-        A[Enor Program] --> B[Enor Compiler]
-        B --> C[ENOR ISA]
-    end
-
-    subgraph "ENOR-CPU"
-        subgraph "Scalar Core"
-            D[Program Counter]
-            E[Instruction Decoder]
-            F[Register File<br/>32 x 32-bit]
-            G[ALU]
-            H[Load/Store Unit]
-        end
-
-        subgraph "Vector Engine"
-            I[Vector Register File<br/>16 x 256-bit]
-            J[8x Vector Lanes<br/>INT8/INT16/INT32]
-            K[Reduction Unit<br/>DOT/SUM/MAX]
-        end
-
-        subgraph "Matrix Engine"
-            L[8x8 MAC Array<br/>INT8 Multipliers]
-            M[Accumulator<br/>8x8 x 32-bit]
-            N[Tile Controller]
-        end
-
-        subgraph "Memory System"
-            O[Code SRAM<br/>32 KB]
-            P[Data SRAM<br/>64 KB]
-            Q[Matrix SRAM<br/>32 KB]
-            R[Vector SRAM<br/>16 KB]
-        end
-
-        subgraph "I/O Peripherals"
-            S[UART]
-            T[Timer]
-            U[GPIO]
-        end
-    end
-
-    C --> D
-    C --> E
-    D --> O
-    E --> F
-    F --> G
-    F --> H
-    H --> P
-    H --> Q
-    H --> R
-    G --> H
-    F --> I
-    I --> J
-    J --> K
-    L --> M
-    M --> N
-    Q --> L
-    R --> J
-    H --> S
-    H --> T
-    H --> U
+graph TD
+    A[Enor Program] --> B[Enor Compiler]
+    B --> C[ENOR ISA]
+    C --> D[ENOR-CPU]
+    D --> E[Scalar Core]
+    D --> F[Vector Engine]
+    D --> G[Matrix Engine]
+    D --> H[Memory System]
+    E --> I[ALU + Registers]
+    F --> J[256-bit SIMD]
+    G --> K[8x8 MAC Array]
+    H --> L[Code + Data SRAM]
 ```
 
 The architecture separates concerns across three execution domains:
@@ -186,54 +137,11 @@ ENOR-CPU implements a classic 5-stage in-order pipeline with separate execution 
 
 ```mermaid
 graph LR
-    subgraph "IF Stage"
-        A[Program Counter] --> B[Code SRAM<br/>32 KB]
-        B --> C[IF/ID Pipeline Reg]
-    end
-
-    subgraph "ID Stage"
-        C --> D[Instruction Decoder]
-        D --> E[Control Signals]
-        D --> F[Register File<br/>32 x 32-bit]
-        D --> G[Immediate Gen]
-        D --> H[Vector RegFile<br/>16 x 256-bit]
-        F --> I[ID/EX Pipeline Reg]
-        G --> I
-        H --> I
-    end
-
-    subgraph "EX Stage"
-        I --> J[Source Mux<br/>Reg/Imm]
-        J --> K[Scalar ALU<br/>32-bit]
-        J --> L[Branch Logic]
-        I --> M[Vector Unit<br/>8x Lanes]
-        I --> N[Matrix Unit<br/>8x8 MAC]
-        K --> O[EX/MEM Pipeline Reg]
-        L --> O
-        M --> O
-        N --> O
-    end
-
-    subgraph "MEM Stage"
-        O --> P[Data SRAM<br/>64 KB]
-        O --> Q[Vector SRAM<br/>16 KB]
-        O --> R[Matrix SRAM<br/>32 KB]
-        O --> S[Address Calc]
-        P --> T[MEM/WB Pipeline Reg]
-        Q --> T
-        R --> T
-    end
-
-    subgraph "WB Stage"
-        T --> U[WB Mux<br/>ALU/Mem]
-        U --> V[Register Write]
-        U --> W[Vector Write]
-        V --> F
-        W --> H
-    end
-
-    V -.->|Forwarding| K
-    W -.->|Forwarding| M
+    A[IF<br/>Fetch] --> B[ID<br/>Decode]
+    B --> C[EX<br/>Execute]
+    C --> D[MEM<br/>Memory]
+    D --> E[WB<br/>Writeback]
+    E -->|Forwarding| C
 ```
 
 ### 4.1 Pipeline Stages
