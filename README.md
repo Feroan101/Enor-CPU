@@ -361,6 +361,37 @@ ENOR-CPU uses a modified Harvard architecture with separate address spaces for c
 
 ### 7.1 Memory Map
 
+```mermaid
+block-beta
+    columns 4
+    block:code:4
+        columns 1
+        A["Code SRAM\n0x00000000 - 0x00007FFF\n32 KB"]
+    end
+    block:reserved1:4
+        columns 1
+        B["Reserved\n0x00008000 - 0x3FFFFFFF"]
+    end
+    block:data:4
+        columns 2
+        C["Data SRAM\n0x40000000 - 0x4000FFFF\n64 KB"]
+        D["Matrix SRAM\n0x40000000 - 0x40007FFF\n32 KB"]
+    end
+    block:vec:2
+        E["Vector SRAM\n0x40000000 - 0x40003FFF\n16 KB"]
+    end
+    block:acc:2
+        F["Matrix Acc\n0x40000000 - 0x400000FF\n256 B"]
+    end
+    block:io:4
+        columns 2
+        G["UART\n0x80000000"]
+        H["Timer\n0x80000008"]
+        I["GPIO\n0x80000010"]
+        J["Interrupt\n0x80000018"]
+    end
+```
+
 | Region | Address Range | Size | Purpose |
 |--------|---------------|-----:|---------|
 | Code SRAM | 0x00000000 - 0x00007FFF | 32 KB | Instruction storage (read-only from CPU) |
@@ -413,16 +444,27 @@ ENOR-CPU provides a hardware execution path for quantized neural network inferen
 
 ### 8.2 AI Workload Pipeline
 
-```
-AI workload
-    ↓
-Enor operation
-    ↓
-ENOR ISA instruction
-    ↓
-Dedicated execution unit
-    ↓
-Hardware computation
+```mermaid
+flowchart TD
+    A[AI Workload<br/>Neural Network] --> B[Enor Compiler<br/>Analysis]
+    B --> C{Operation Type}
+    C -->|Matrix Multiply| D[MMUL / MMAC]
+    C -->|Element-wise| E[VADD / VSUB / VMUL]
+    C -->|Dot Product| F[VDOT]
+    C -->|Reduction| G[VRED_SUM]
+    C -->|Activation| H[VADD with Scalar]
+    C -->|Data Move| I[VLW / VSW / MLOAD]
+    D --> J[Matrix Engine<br/>8x8 MAC Array]
+    E --> K[Vector Engine<br/>256-bit SIMD]
+    F --> K
+    G --> K
+    H --> K
+    I --> L[Memory System<br/>SRAM Access]
+    J --> M[INT32 Accumulator]
+    K --> N[Vector Register File]
+    L --> O[Result Output]
+    M --> O
+    N --> O
 ```
 
 The Enor compiler maps high-level AI operations to ENOR-CPU instructions:
@@ -586,6 +628,42 @@ The pipeline control unit implements:
 | x1-x31 | Undefined | Must be initialized by software |
 | v0-v15 | Undefined | Must be initialized by software |
 
+### 10.3 Project Structure
+
+```
+ENOR-CPU/
+├── docs/                    # Architecture documentation
+│   ├── architecture.md      # System architecture spec
+│   ├── microarchitecture.md # Pipeline and datapath spec
+│   ├── design-decisions.md  # Design rationale
+│   └── roadmap.md           # Development timeline
+├── isa/                     # ISA specification
+│   ├── instructions.md      # Complete instruction set
+│   ├── registers.md         # Register architecture
+│   ├── encoding.md          # Binary encoding formats
+│   └── memory-model.md      # Memory architecture
+├── rtl/                     # SystemVerilog RTL
+│   ├── core/                # Processor core modules
+│   │   ├── enor_core.sv     # Top-level core
+│   │   ├── alu.sv           # Arithmetic logic unit
+│   │   ├── decoder.sv       # Instruction decoder
+│   │   ├── register_file.sv # Scalar register file
+│   │   ├── vector_regfile.sv # Vector register file
+│   │   └── matrix_regfile.sv # Matrix register file
+│   ├── mem/                 # Memory modules
+│   ├── peripherals/         # I/O peripherals
+│   ├── tb/                  # Testbenches
+│   └── enor_soc.sv          # SoC top level
+├── sim/                     # Python simulator
+│   ├── cpu.py               # Simulator entry point
+│   ├── instructions.py      # Instruction executor
+│   ├── memory.py            # Memory model
+│   ├── registers.py         # Register model
+│   ├── assembler.py         # Assembler
+│   └── tests/               # Test programs
+└── README.md
+```
+
 ---
 
 ## 11. Verification
@@ -593,6 +671,20 @@ The pipeline control unit implements:
 ENOR-CPU verification is performed through a multi-layered approach comparing behavioral simulation against the reference model.
 
 ### 11.1 Verification Components
+
+```mermaid
+flowchart LR
+    A[Assembly Source] --> B[Assembler]
+    B --> C[Binary]
+    C --> D[Python Simulator]
+    C --> E[SystemVerilog RTL]
+    D --> F[Trace Output]
+    E --> F
+    F --> G[Automated Checker]
+    G --> H{Match?}
+    H -->|Yes| I[Pass]
+    H -->|No| J[Fail + Diff]
+```
 
 | Component | Description |
 |-----------|-------------|
@@ -614,7 +706,7 @@ ENOR-CPU verification is performed through a multi-layered approach comparing be
 
 ### 11.3 Verification Methodology
 
-The reference simulator provides deterministic execution of all 42 instructions. RTL simulation output is compared against the simulator on an instruction-by-instruction basis, verifying:
+The reference simulator provides deterministic execution of all 50 instructions. RTL simulation output is compared against the simulator on an instruction-by-instruction basis, verifying:
 
 - Register state after each instruction
 - Memory state after load/store operations
@@ -625,7 +717,83 @@ The reference simulator provides deterministic execution of all 42 instructions.
 
 ---
 
-## 12. Technical Specification
+## 12. Interrupt Model
+
+ENOR-CPU implements a simple vectored interrupt model with two interrupt sources plus an error handler.
+
+### 12.1 Interrupt Sources
+
+| Source | Priority | Vector Address | Description |
+|--------|----------|----------------|-------------|
+| Error | 0 (highest) | 0x00001000 | Memory error, overflow, illegal instruction |
+| Timer | 1 | 0x00001004 | System tick interrupt |
+| External | 2 | 0x00001008 | GPIO, UART |
+
+### 12.2 Exception Handling
+
+On interrupt or exception:
+
+1. Save PC to EPC CSR (0x010)
+2. Set ECAUSE CSR (0x011) to exception code
+3. Disable interrupts (SR.IE = 0)
+4. Jump to handler address
+
+### 12.3 Context Save
+
+Hardware saves:
+- PC → EPC
+- SR → saved (interrupts disabled)
+
+Software must save:
+- x1-x31 (31 registers × 4 bytes = 124 bytes)
+- v0-v15 (16 registers × 32 bytes = 512 bytes)
+- VL, VLX, VLY, VLZ (16 bytes)
+
+Total context save: ~652 bytes
+
+---
+
+## 13. FPGA Implementation
+
+ENOR-CPU targets mid-range FPGA devices with emphasis on resource efficiency and timing closure.
+
+### 13.1 Target Devices
+
+| Device | Family | Notes |
+|--------|--------|-------|
+| XC7A100T | Xilinx Artix-7 | Primary target |
+| XC7A35T | Xilinx Artix-7 | Minimum viable |
+| LFE5U-25F | Lattice ECP5 | Alternative |
+| 5CEBA4F23C7 | Intel Cyclone V | Alternative |
+
+### 13.2 Resource Estimates
+
+| Resource | Estimated Usage | Notes |
+|----------|-----------------|-------|
+| LUTs | 8,000 - 12,000 | Including decode and control |
+| FFs | 4,000 - 6,000 | Pipeline registers + register files |
+| BRAM | 8 - 12 | 36Kb blocks for SRAM |
+| DSPs | 16 - 32 | For 8x8 INT8 MAC array |
+| Fmax | 50 - 100 MHz | Depends on routing |
+
+### 13.3 Clock and Reset
+
+- **Clock:** Single 50 MHz domain (target)
+- **Reset:** Asynchronous active-low, 16-cycle hold
+- **Clock gating:** Not implemented (v0.1)
+
+### 13.4 Memory Implementation
+
+All SRAM is implemented using FPGA block RAM (BRAM):
+
+- Code SRAM: 1 × 36Kb BRAM (32 KB)
+- Data SRAM: 2 × 36Kb BRAMs (64 KB)
+- Matrix SRAM: 1 × 36Kb BRAM (32 KB, dual-port)
+- Vector SRAM: 1 × 18Kb BRAM (16 KB, 4-bank)
+
+---
+
+## 14. Technical Specification
 
 | Property | Specification |
 |----------|---------------|
