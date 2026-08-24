@@ -1,4 +1,4 @@
-# ENOR-CPU
+# ENOR-CPU (RAIN)
 
 ### A Custom AI-Oriented RISC Processor Architecture
 
